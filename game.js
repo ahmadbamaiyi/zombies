@@ -1,6 +1,6 @@
 // ============================================
-// ZOMBIE APOCALYPSE SURVIVAL v2.0
-// Twin-Stick Shooter with Auto-Fire
+// ZOMBIE APOCALYPSE SURVIVAL v2.1
+// Fixed Mobile Controls
 // ============================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -50,9 +50,11 @@ const state = {
     mouseX: canvas.width / 2,
     mouseY: canvas.height / 2,
     mouseDown: false,
-    // Mobile twin-stick
-    moveJoystick: { active: false, x: 0, y: 0 },
-    aimJoystick: { active: false, x: 0, y: 0, angle: 0 },
+    // Mobile twin-stick - TRACKED BY TOUCH IDENTIFIER
+    moveTouchId: null,
+    aimTouchId: null,
+    moveJoystick: { active: false, startX: 0, startY: 0, x: 0, y: 0 },
+    aimJoystick: { active: false, startX: 0, startY: 0, x: 0, y: 0, angle: 0 },
     // Auto-fire
     autoFire: true,
     shootCooldown: 0,
@@ -70,7 +72,7 @@ const WEAPONS = [
     {
         name: 'Pistol',
         damage: 25,
-        fireRate: 15,         // Frames between shots
+        fireRate: 15,
         spread: 0.04,
         bulletsPerShot: 1,
         speed: 10,
@@ -80,7 +82,6 @@ const WEAPONS = [
         reloadTime: 40,
         color: '#ffcc00',
         symbol: '🔫',
-        sound: 'pew',
     },
     {
         name: 'Shotgun',
@@ -95,7 +96,6 @@ const WEAPONS = [
         reloadTime: 65,
         color: '#ff6600',
         symbol: '💥',
-        sound: 'boom',
     },
     {
         name: 'Assault Rifle',
@@ -110,7 +110,6 @@ const WEAPONS = [
         reloadTime: 50,
         color: '#00ccff',
         symbol: '🎯',
-        sound: 'ratatat',
     },
     {
         name: 'Flamethrower',
@@ -125,13 +124,12 @@ const WEAPONS = [
         reloadTime: 80,
         color: '#ff4400',
         symbol: '🔥',
-        sound: 'whoosh',
         fire: true,
     },
 ];
 
 // ============================================
-// ZOMBIE TYPES (Balanced for fun)
+// ZOMBIE TYPES
 // ============================================
 const ZOMBIE_TYPES = {
     walker: {
@@ -181,7 +179,7 @@ const ZOMBIE_TYPES = {
 // PARTICLE CLASS
 // ============================================
 class Particle {
-    constructor(x, y, vx, vy, color, size, life, type = 'circle') {
+    constructor(x, y, vx, vy, color, size, life) {
         this.x = x;
         this.y = y;
         this.vx = vx;
@@ -190,7 +188,6 @@ class Particle {
         this.size = size;
         this.life = life;
         this.maxLife = life;
-        this.type = type;
     }
 
     update() {
@@ -205,13 +202,9 @@ class Particle {
         const alpha = this.life / this.maxLife;
         ctx.fillStyle = this.color;
         ctx.globalAlpha = alpha;
-
-        if (this.type === 'circle') {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
         ctx.globalAlpha = 1;
     }
 }
@@ -251,7 +244,6 @@ class Zombie {
         const dist = Math.sqrt(dx * dx + dy * dy);
         this.angle = Math.atan2(dy, dx);
 
-        // Movement toward player with separation
         let moveX = 0;
         let moveY = 0;
 
@@ -260,7 +252,6 @@ class Zombie {
             moveY = (dy / dist) * this.speed;
         }
 
-        // Separate from other zombies
         for (const other of zombies) {
             if (other === this) continue;
             const odx = this.x - other.x;
@@ -275,11 +266,9 @@ class Zombie {
         this.x += moveX;
         this.y += moveY;
 
-        // Keep in bounds
         this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
         this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
 
-        // Attack player
         if (dist < this.radius + player.radius + 5) {
             if (this.attackCooldown <= 0) {
                 player.hp -= this.damage;
@@ -305,7 +294,6 @@ class Zombie {
         this.hp -= amount;
         this.staggerTimer = 5;
 
-        // Blood splatter
         for (let i = 0; i < 6; i++) {
             state.particles.push(new Particle(
                 this.x, this.y,
@@ -315,7 +303,6 @@ class Zombie {
             ));
         }
 
-        // Blood stain
         state.bloodStains.push({
             x: this.x + (Math.random() - 0.5) * 10,
             y: this.y + (Math.random() - 0.5) * 10,
@@ -333,24 +320,19 @@ class Zombie {
 
         const wobble = Math.sin(Date.now() / 200 + this.wobbleOffset) * 2;
 
-        // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
         ctx.arc(2, 2, this.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Body
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(wobble, wobble, this.radius, 0, Math.PI * 2);
         ctx.fill();
-
-        // Border
         ctx.strokeStyle = 'rgba(0,0,0,0.4)';
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Eyes
         ctx.fillStyle = '#ff0000';
         ctx.shadowColor = '#ff0000';
         ctx.shadowBlur = 4;
@@ -360,7 +342,6 @@ class Zombie {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Tank has armor plates
         if (this.type === 'tank') {
             ctx.fillStyle = '#555';
             ctx.beginPath();
@@ -371,20 +352,6 @@ class Zombie {
             ctx.stroke();
         }
 
-        // Runner has legs
-        if (this.type === 'runner') {
-            ctx.strokeStyle = this.color;
-            ctx.lineWidth = 3;
-            const legAnim = Math.sin(Date.now() / 100 + this.wobbleOffset) * 4;
-            ctx.beginPath();
-            ctx.moveTo(-4, this.radius - 2);
-            ctx.lineTo(-6 - legAnim, this.radius + 8);
-            ctx.moveTo(4, this.radius - 2);
-            ctx.lineTo(6 + legAnim, this.radius + 8);
-            ctx.stroke();
-        }
-
-        // HP bar
         if (this.hp < this.maxHp) {
             const barWidth = this.radius * 2;
             const barY = -this.radius - 10;
@@ -419,7 +386,6 @@ class Bullet {
         this.y += this.vy;
         this.traveled += Math.sqrt(this.vx * this.vx + this.vy * this.vy);
 
-        // Fire trail
         if (this.isFire && Math.random() < 0.5) {
             state.particles.push(new Particle(
                 this.x, this.y,
@@ -444,7 +410,6 @@ class Bullet {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Trail
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 1.5;
         ctx.globalAlpha = 0.4;
@@ -465,7 +430,7 @@ class PowerUp {
         this.y = y;
         this.type = type;
         this.radius = 14;
-        this.life = 480; // 8 seconds
+        this.life = 480;
 
         switch (type) {
             case 'health':
@@ -500,7 +465,6 @@ class PowerUp {
     draw(ctx) {
         const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
 
-        // Glow
         ctx.fillStyle = this.glowColor;
         ctx.globalAlpha = 0.2 * pulse;
         ctx.beginPath();
@@ -508,7 +472,6 @@ class PowerUp {
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        // Body
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -517,18 +480,10 @@ class PowerUp {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Symbol
         ctx.font = '16px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.symbol, this.x, this.y);
-
-        // Timer bar
-        const timerPercent = this.life / 480;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(this.x - this.radius, this.y - this.radius - 10, this.radius * 2, 3);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(this.x - this.radius, this.y - this.radius - 10, this.radius * 2 * timerPercent, 3);
     }
 }
 
@@ -545,7 +500,6 @@ function startWave() {
     state.spawnTimer = 0;
     state.spawnDelay = Math.max(18, 55 - state.wave * 2);
 
-    // Heal player between waves
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + 20);
     state.healingText = 40;
 
@@ -590,7 +544,6 @@ function updateWaveSpawning() {
         state.waveActive = false;
         state.score += state.wave * 100;
 
-        // Power-up spawn
         if (Math.random() < 0.6) {
             const types = ['health', 'ammo', 'speed', 'nuke'];
             const type = types[Math.floor(Math.random() * types.length)];
@@ -610,12 +563,14 @@ function updateWaveSpawning() {
 // ============================================
 // AUTO-FIRE SYSTEM
 // ============================================
+function isMobileDevice() {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+}
+
 function autoFire() {
     if (state.gameOver || state.reloading) return;
     if (state.shootCooldown > 0) return;
 
-    // On desktop, auto-fire when mouse is on canvas
-    // On mobile, auto-fire when aim joystick is active
     const shouldFire = state.autoFire && 
         (state.aimJoystick.active || state.mouseDown || isMobileDevice());
 
@@ -638,7 +593,6 @@ function autoFire() {
     const p = state.player;
     const angle = p.angle;
 
-    // Spawn bullets
     for (let i = 0; i < weapon.bulletsPerShot; i++) {
         const spreadAngle = angle + (Math.random() - 0.5) * weapon.spread * 2;
         state.bullets.push(new Bullet(
@@ -649,7 +603,6 @@ function autoFire() {
         ));
     }
 
-    // Muzzle flash
     for (let i = 0; i < 4; i++) {
         state.particles.push(new Particle(
             p.x + Math.cos(angle) * 22,
@@ -661,10 +614,6 @@ function autoFire() {
     }
 
     updateWeaponUI();
-}
-
-function isMobileDevice() {
-    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 }
 
 // ============================================
@@ -807,7 +756,6 @@ function checkPlayerZombieCollisions() {
             state.player.invincible = state.player.invincibleDuration;
             state.screenShake = 5;
 
-            // Push player away
             const pushAngle = Math.atan2(dy, dx);
             state.player.x += Math.cos(pushAngle) * 10;
             state.player.y += Math.sin(pushAngle) * 10;
@@ -860,11 +808,6 @@ function updateWeaponUI() {
     slots.forEach((slot, i) => {
         slot.classList.toggle('active', i === state.currentWeapon);
     });
-
-    const shootBtn = document.getElementById('shoot-btn');
-    if (shootBtn) {
-        shootBtn.textContent = state.reloading ? '⏳' : `${weapon.ammo}`;
-    }
 }
 
 // ============================================
@@ -873,7 +816,6 @@ function updateWeaponUI() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Screen shake
     let shakeX = 0, shakeY = 0;
     if (state.screenShake > 0) {
         shakeX = (Math.random() - 0.5) * state.screenShake;
@@ -938,13 +880,9 @@ function draw() {
 
     ctx.restore();
 
-    // HUD overlay
     drawHUD();
-
-    // Mobile controls visual
     drawMobileControls();
 
-    // Game over
     if (state.gameOver) {
         drawGameOver();
     }
@@ -953,12 +891,10 @@ function draw() {
 function drawPlayer() {
     const p = state.player;
 
-    // Invincibility flash
     if (p.invincible > 0 && Math.floor(p.invincible / 4) % 2 === 0) {
         ctx.globalAlpha = 0.5;
     }
 
-    // Shield ring when invincible
     if (p.invincible > 0) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.lineWidth = 2;
@@ -967,13 +903,11 @@ function drawPlayer() {
         ctx.stroke();
     }
 
-    // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
     ctx.arc(p.x + 2, p.y + 2, p.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Body
     const bodyGrad = ctx.createRadialGradient(p.x - 3, p.y - 3, 2, p.x, p.y, p.radius);
     bodyGrad.addColorStop(0, '#66aaff');
     bodyGrad.addColorStop(1, '#2255cc');
@@ -985,7 +919,6 @@ function drawPlayer() {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Gun barrel
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle);
@@ -998,7 +931,6 @@ function drawPlayer() {
     ctx.strokeRect(16, -5, 10, 10);
     ctx.restore();
 
-    // Eyes
     ctx.fillStyle = '#fff';
     ctx.beginPath();
     ctx.arc(p.x - 4, p.y - 3, 3, 0, Math.PI * 2);
@@ -1012,7 +944,6 @@ function drawPlayer() {
 
     ctx.globalAlpha = 1;
 
-    // HP bar
     const barWidth = 36;
     const barY = p.y - p.radius - 14;
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
@@ -1030,7 +961,6 @@ function drawPlayer() {
 }
 
 function drawHUD() {
-    // Combo display
     if (state.combo > 1 && state.comboTimer > 0) {
         const alpha = Math.min(1, state.comboTimer / 60);
         const scale = 1 + state.combo * 0.02;
@@ -1044,7 +974,6 @@ function drawHUD() {
         ctx.restore();
     }
 
-    // Ammo warning
     if (state.ammoWarning > 0 && state.ammoWarning % 20 < 10) {
         ctx.fillStyle = '#ff4444';
         ctx.font = 'bold 16px Arial';
@@ -1052,7 +981,6 @@ function drawHUD() {
         ctx.fillText('NO AMMO!', canvas.width / 2, canvas.height / 2 + 30);
     }
 
-    // Reload bar
     if (state.reloading) {
         const progress = 1 - (state.reloadTimer / WEAPONS[state.currentWeapon].reloadTime);
         const barY = canvas.height / 2 + 40;
@@ -1066,7 +994,6 @@ function drawHUD() {
         ctx.fillText('RELOADING...', canvas.width / 2, barY - 5);
     }
 
-    // Healing text
     if (state.healingText > 0) {
         const alpha = Math.min(1, state.healingText / 30);
         ctx.fillStyle = `rgba(68, 255, 68, ${alpha})`;
@@ -1076,7 +1003,6 @@ function drawHUD() {
         state.healingText--;
     }
 
-    // Wave announcement
     if (!state.waveActive && state.zombies.length === 0 && state.wave > 0) {
         const pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
         ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
@@ -1089,31 +1015,75 @@ function drawHUD() {
 function drawMobileControls() {
     if (!isMobileDevice()) return;
 
-    const alpha = 0.25;
+    const alpha = 0.2;
 
     // Left side - Movement joystick
-    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
-    ctx.lineWidth = 2;
+    const moveCenterX = 80;
+    const moveCenterY = canvas.height - 100;
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
     ctx.beginPath();
-    ctx.arc(75, canvas.height - 75, 50, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.5})`;
+    ctx.arc(moveCenterX, moveCenterY, 55, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha + 0.15})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Move thumb position
+    let thumbMX = moveCenterX;
+    let thumbMY = moveCenterY;
+    if (state.moveJoystick.active) {
+        thumbMX = moveCenterX + state.moveJoystick.x * 40;
+        thumbMY = moveCenterY + state.moveJoystick.y * 40;
+    }
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha + 0.3})`;
+    ctx.beginPath();
+    ctx.arc(thumbMX, thumbMY, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('MOVE', moveCenterX, moveCenterY + 4);
 
     // Right side - Aim joystick
-    ctx.strokeStyle = `rgba(255, 100, 100, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(canvas.width - 75, canvas.height - 75, 50, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = `rgba(255, 100, 100, ${alpha * 0.5})`;
-    ctx.fill();
+    const aimCenterX = canvas.width - 80;
+    const aimCenterY = canvas.height - 100;
 
-    // Labels
-    ctx.fillStyle = `rgba(255, 255, 255, ${alpha + 0.2})`;
-    ctx.font = 'bold 11px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('MOVE', 75, canvas.height - 75 + 4);
-    ctx.fillText('AIM', canvas.width - 75, canvas.height - 75 + 4);
+    ctx.fillStyle = `rgba(255, 80, 80, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(aimCenterX, aimCenterY, 55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 80, 80, ${alpha + 0.15})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Aim thumb position
+    let thumbAX = aimCenterX;
+    let thumbAY = aimCenterY;
+    if (state.aimJoystick.active) {
+        const dist = Math.sqrt(state.aimJoystick.x * state.aimJoystick.x + state.aimJoystick.y * state.aimJoystick.y);
+        if (dist > 10) {
+            const scale = Math.min(dist, 40) / Math.max(dist, 1);
+            thumbAX = aimCenterX + state.aimJoystick.x * scale;
+            thumbAY = aimCenterY + state.aimJoystick.y * scale;
+        }
+    }
+
+    ctx.fillStyle = `rgba(255, 80, 80, ${alpha + 0.3})`;
+    ctx.beginPath();
+    ctx.arc(thumbAX, thumbAY, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ff6666';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fillText('AIM', aimCenterX, aimCenterY + 4);
 }
 
 function drawGameOver() {
@@ -1141,38 +1111,71 @@ function drawGameOver() {
 }
 
 // ============================================
-// MOBILE TWIN-STICK CONTROLS
+// FIXED MOBILE TOUCH CONTROLS
 // ============================================
+function getCanvasTouchPos(touch) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (touch.clientX - rect.left) * (canvas.width / rect.width),
+        y: (touch.clientY - rect.top) * (canvas.height / rect.height),
+    };
+}
+
 function setupMobileControls() {
-    // Left side - Movement
+    // REMOVE old button handlers first by cloning and replacing
+    const reloadBtn = document.getElementById('reload-btn');
+    const swapBtn = document.getElementById('weapon-swap-btn');
+    
+    const newReloadBtn = reloadBtn.cloneNode(true);
+    const newSwapBtn = swapBtn.cloneNode(true);
+    reloadBtn.parentNode.replaceChild(newReloadBtn, reloadBtn);
+    swapBtn.parentNode.replaceChild(newSwapBtn, swapBtn);
+
+    // Button handlers with stopPropagation
+    newReloadBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        reloadWeapon();
+    });
+
+    newSwapBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        state.currentWeapon = (state.currentWeapon + 1) % WEAPONS.length;
+        updateWeaponUI();
+    });
+
+    // CANVAS TOUCH HANDLERS
     canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
+        
         if (state.gameOver) {
             restartGame();
             return;
         }
 
-        for (const touch of e.changedTouches) {
-            const rect = canvas.getBoundingClientRect();
-            const tx = (touch.clientX - rect.left) * (canvas.width / rect.width);
-            const ty = (touch.clientY - rect.top) * (canvas.height / rect.height);
+        // Process all active touches
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            const pos = getCanvasTouchPos(touch);
 
-            // Left half = movement joystick
-            if (tx < canvas.width / 2) {
+            // Determine which side and assign touch ID
+            if (pos.x < canvas.width / 2) {
+                // LEFT SIDE = MOVEMENT
+                state.moveTouchId = touch.identifier;
                 state.moveJoystick.active = true;
-                state.moveJoystick.startX = tx;
-                state.moveJoystick.startY = ty;
+                state.moveJoystick.startX = pos.x;
+                state.moveJoystick.startY = pos.y;
                 state.moveJoystick.x = 0;
                 state.moveJoystick.y = 0;
-            }
-            // Right half = aim joystick
-            else {
+            } else {
+                // RIGHT SIDE = AIM
+                state.aimTouchId = touch.identifier;
                 state.aimJoystick.active = true;
-                state.aimJoystick.startX = tx;
-                state.aimJoystick.startY = ty;
+                state.aimJoystick.startX = pos.x;
+                state.aimJoystick.startY = pos.y;
                 state.aimJoystick.x = 0;
                 state.aimJoystick.y = 0;
-                state.aimJoystick.angle = state.player.angle;
             }
         }
     }, { passive: false });
@@ -1180,39 +1183,58 @@ function setupMobileControls() {
     canvas.addEventListener('touchmove', (e) => {
         e.preventDefault();
 
-        for (const touch of e.changedTouches) {
-            const rect = canvas.getBoundingClientRect();
-            const tx = (touch.clientX - rect.left) * (canvas.width / rect.width);
-            const ty = (touch.clientY - rect.top) * (canvas.height / rect.height);
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            const pos = getCanvasTouchPos(touch);
 
-            // Movement joystick
-            if (state.moveJoystick.active && tx < canvas.width / 2) {
-                const dx = tx - state.moveJoystick.startX;
-                const dy = ty - state.moveJoystick.startY;
+            // Check which joystick this touch belongs to
+            if (touch.identifier === state.moveTouchId) {
+                // MOVEMENT JOYSTICK
+                const dx = pos.x - state.moveJoystick.startX;
+                const dy = pos.y - state.moveJoystick.startY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 const maxDist = 40;
 
-                if (dist < maxDist) {
+                if (dist < maxDist && dist > 0) {
                     state.moveJoystick.x = dx / maxDist;
                     state.moveJoystick.y = dy / maxDist;
-                } else {
+                } else if (dist > 0) {
                     state.moveJoystick.x = dx / dist;
                     state.moveJoystick.y = dy / dist;
+                } else {
+                    state.moveJoystick.x = 0;
+                    state.moveJoystick.y = 0;
                 }
-            }
-
-            // Aim joystick
-            if (state.aimJoystick.active && tx >= canvas.width / 2) {
-                const dx = tx - state.aimJoystick.startX;
-                const dy = ty - state.aimJoystick.startY;
+            } else if (touch.identifier === state.aimTouchId) {
+                // AIM JOYSTICK
+                const dx = pos.x - state.aimJoystick.startX;
+                const dy = pos.y - state.aimJoystick.startY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                if (dist > 10) {
-                    state.aimJoystick.x = dx;
-                    state.aimJoystick.y = dy;
+                state.aimJoystick.x = dx;
+                state.aimJoystick.y = dy;
+
+                // Update player angle if the aim movement is significant
+                if (dist > 15) {
                     state.aimJoystick.angle = Math.atan2(dy, dx);
                     state.player.angle = state.aimJoystick.angle;
                 }
+            }
+            // If touch is on left but belongs to right, reassign
+            else if (pos.x < canvas.width / 2 && state.moveTouchId === null) {
+                state.moveTouchId = touch.identifier;
+                state.moveJoystick.active = true;
+                state.moveJoystick.startX = pos.x;
+                state.moveJoystick.startY = pos.y;
+                state.moveJoystick.x = 0;
+                state.moveJoystick.y = 0;
+            } else if (pos.x >= canvas.width / 2 && state.aimTouchId === null) {
+                state.aimTouchId = touch.identifier;
+                state.aimJoystick.active = true;
+                state.aimJoystick.startX = pos.x;
+                state.aimJoystick.startY = pos.y;
+                state.aimJoystick.x = 0;
+                state.aimJoystick.y = 0;
             }
         }
     }, { passive: false });
@@ -1220,35 +1242,43 @@ function setupMobileControls() {
     canvas.addEventListener('touchend', (e) => {
         e.preventDefault();
 
-        for (const touch of e.changedTouches) {
-            const rect = canvas.getBoundingClientRect();
-            const tx = (touch.clientX - rect.left) * (canvas.width / rect.width);
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
 
-            if (tx < canvas.width / 2) {
+            if (touch.identifier === state.moveTouchId) {
+                // Release movement
+                state.moveTouchId = null;
                 state.moveJoystick.active = false;
                 state.moveJoystick.x = 0;
                 state.moveJoystick.y = 0;
-            } else {
+            } else if (touch.identifier === state.aimTouchId) {
+                // Release aim
+                state.aimTouchId = null;
                 state.aimJoystick.active = false;
                 state.aimJoystick.x = 0;
                 state.aimJoystick.y = 0;
+                // DON'T reset angle - player keeps facing last direction
             }
+        }
+
+        // If all touches released, check if we need to restart
+        if (e.touches.length === 0 && state.gameOver) {
+            restartGame();
         }
     }, { passive: false });
 
-    // Button handlers
-    document.getElementById('reload-btn').addEventListener('touchstart', (e) => {
+    canvas.addEventListener('touchcancel', (e) => {
         e.preventDefault();
-        e.stopPropagation();
-        reloadWeapon();
-    });
-
-    document.getElementById('weapon-swap-btn').addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        state.currentWeapon = (state.currentWeapon + 1) % WEAPONS.length;
-        updateWeaponUI();
-    });
+        // Reset all joysticks
+        state.moveTouchId = null;
+        state.aimTouchId = null;
+        state.moveJoystick.active = false;
+        state.moveJoystick.x = 0;
+        state.moveJoystick.y = 0;
+        state.aimJoystick.active = false;
+        state.aimJoystick.x = 0;
+        state.aimJoystick.y = 0;
+    }, { passive: false });
 }
 
 // ============================================
@@ -1306,7 +1336,7 @@ function update() {
     const p = state.player;
 
     // Desktop aiming (mouse)
-    if (!state.aimJoystick.active && !isMobileDevice()) {
+    if (!isMobileDevice() || (!state.aimJoystick.active && state.mouseDown)) {
         p.angle = Math.atan2(state.mouseY - p.y, state.mouseX - p.x);
     }
 
@@ -1445,6 +1475,14 @@ function restartGame() {
     state.regenTimer = 0;
     state.healingText = 0;
     state.screenShake = 0;
+    state.moveTouchId = null;
+    state.aimTouchId = null;
+    state.moveJoystick.active = false;
+    state.moveJoystick.x = 0;
+    state.moveJoystick.y = 0;
+    state.aimJoystick.active = false;
+    state.aimJoystick.x = 0;
+    state.aimJoystick.y = 0;
     WEAPONS.forEach(w => w.ammo = w.maxAmmo);
     state.currentWeapon = 0;
     updateUI();
@@ -1472,8 +1510,7 @@ function init() {
 
 init();
 
-console.log('🧟 Zombie Apocalypse Survival v2.0 Ready!');
-console.log('🕹️ DESKTOP: WASD = Move | Mouse = Aim | Auto-Fire when mouse is on canvas');
-console.log('📱 MOBILE: Left side = Move | Right side = Aim (360°) | Auto-Fire');
-console.log('🔢 1-4 = Switch weapons | R = Reload');
-console.log('❤️ Player HP: 200 | Passive Regen | Zombie damage reduced');
+console.log('🧟 Zombie Apocalypse Survival v2.1 - FIXED MOBILE');
+console.log('📱 MOBILE: Left side = Move | Right side = Aim 360°');
+console.log('🔫 Auto-fires when aiming on right side');
+console.log('🔄 Tap reload button | ⇄ Tap to swap weapons');
