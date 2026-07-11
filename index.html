@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Zombie Apocalypse Survival</title>
     <style>
         * {
@@ -15,44 +17,55 @@
             -webkit-touch-callout: none;
         }
 
-        body {
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             background: #000;
+            font-family: 'Arial', sans-serif;
+            touch-action: manipulation;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        #game-wrapper {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            min-height: 100dvh;
-            font-family: 'Arial', sans-serif;
-            overflow: hidden;
-            touch-action: manipulation;
-            position: fixed;
-            width: 100%;
-            height: 100%;
+            background: #000;
         }
 
         #game-container {
             position: relative;
-            width: 100vmin;
-            max-width: 600px;
-            aspect-ratio: 3/4;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            max-width: 100vw;
             max-height: 100vh;
             max-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         canvas {
             display: block;
-            width: 100%;
-            height: 100%;
             background: #1a1a1a;
             border: 2px solid #333;
             touch-action: none;
+            /* Will be sized by JavaScript */
         }
 
+        /* HUD */
         #hud {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            right: 10px;
+            top: max(10px, env(safe-area-inset-top, 10px));
+            left: max(10px, env(safe-area-inset-left, 10px));
+            right: max(10px, env(safe-area-inset-right, 10px));
             display: flex;
             justify-content: space-between;
             pointer-events: none;
@@ -65,7 +78,7 @@
             color: #fff;
             padding: 5px 10px;
             border-radius: 15px;
-            font-size: 11px;
+            font-size: clamp(9px, 1.5vw, 12px);
             font-weight: bold;
             border: 1px solid rgba(255, 255, 255, 0.2);
             white-space: nowrap;
@@ -80,58 +93,72 @@
             50% { opacity: 0.4; }
         }
 
+        /* Weapon indicator */
         #weapon-indicator {
             position: absolute;
-            top: 55px;
+            top: max(55px, calc(env(safe-area-inset-top, 10px) + 45px));
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 6px;
-            pointer-events: none;
-            z-index: 10;
+            gap: clamp(4px, 1vw, 8px);
+            z-index: 20;
+            pointer-events: auto;
         }
 
         .weapon-slot {
-            width: 36px;
-            height: 36px;
-            background: rgba(0, 0, 0, 0.7);
+            width: clamp(28px, 5vw, 40px);
+            height: clamp(28px, 5vw, 40px);
+            background: rgba(0, 0, 0, 0.75);
             border: 2px solid #555;
-            border-radius: 8px;
+            border-radius: 10px;
+            font-size: clamp(14px, 2.5vw, 20px);
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 0;
+            line-height: 1;
+            pointer-events: auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            transition: all 0.2s;
         }
 
         .weapon-slot.active {
             border-color: #ffcc00;
-            box-shadow: 0 0 12px rgba(255, 204, 0, 0.5);
-            background: rgba(255, 204, 0, 0.2);
+            box-shadow: 0 0 15px rgba(255, 204, 0, 0.5);
+            background: rgba(255, 204, 0, 0.25);
             transform: scale(1.1);
         }
 
-        /* Mobile control buttons - positioned OUTSIDE canvas area */
+        .weapon-slot:hover {
+            border-color: #fff;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .weapon-slot:active {
+            transform: scale(0.95);
+        }
+
+        /* Mobile buttons */
         #mobile-buttons {
             position: absolute;
-            bottom: 10px;
+            bottom: max(10px, env(safe-area-inset-bottom, 10px));
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 15px;
+            gap: clamp(10px, 2vw, 20px);
             z-index: 20;
             pointer-events: none;
         }
 
         .mobile-action-btn {
             pointer-events: auto;
-            width: 50px;
-            height: 50px;
+            width: clamp(40px, 8vw, 55px);
+            height: clamp(40px, 8vw, 55px);
             border-radius: 50%;
             border: 2px solid rgba(255, 255, 255, 0.5);
             background: rgba(0, 0, 0, 0.8);
             color: #fff;
-            font-size: 22px;
+            font-size: clamp(16px, 3vw, 24px);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -153,18 +180,18 @@
             border-color: rgba(100, 200, 255, 0.7);
         }
 
-        /* Desktop instructions */
+        /* Desktop hint */
         #desktop-hint {
             position: absolute;
             bottom: 10px;
             left: 50%;
             transform: translateX(-50%);
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: clamp(9px, 1.2vw, 12px);
             pointer-events: none;
             z-index: 10;
             text-align: center;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.5);
             padding: 5px 12px;
             border-radius: 10px;
         }
@@ -179,47 +206,187 @@
             #desktop-hint {
                 display: none;
             }
-            .hud-item {
-                font-size: 10px;
-                padding: 4px 7px;
-            }
-            .weapon-slot {
-                width: 30px;
-                height: 30px;
-                font-size: 15px;
-            }
+        }
+
+        /* ============================================ */
+        /* TUTORIAL OVERLAY */
+        /* ============================================ */
+        #tutorial-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Arial', sans-serif;
+        }
+
+        #tutorial-overlay.hidden {
+            display: none;
+        }
+
+        #tutorial-card {
+            background: #1a1a2e;
+            border: 2px solid #e94560;
+            border-radius: 20px;
+            padding: clamp(20px, 4vw, 35px);
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            color: #fff;
+            box-shadow: 0 20px 60px rgba(233, 69, 96, 0.3);
+            position: relative;
+        }
+
+        #tutorial-card h2 {
+            font-size: clamp(20px, 4vw, 28px);
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+
+        #tutorial-card .tutorial-icon {
+            font-size: clamp(40px, 8vw, 60px);
+            margin: 10px 0;
+        }
+
+        #tutorial-card .tutorial-text {
+            font-size: clamp(13px, 2vw, 16px);
+            color: #ccc;
+            margin: 10px 0;
+            line-height: 1.5;
+        }
+
+        #tutorial-card .tutorial-highlight {
+            color: #ffcc00;
+            font-weight: bold;
+        }
+
+        #tutorial-card .tutorial-steps {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin: 15px 0;
+        }
+
+        #tutorial-card .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #555;
+            transition: all 0.3s;
+        }
+
+        #tutorial-card .step-dot.active {
+            background: #e94560;
+            box-shadow: 0 0 10px #e94560;
+        }
+
+        #tutorial-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tutorial-btn {
+            padding: 12px 24px;
+            border-radius: 25px;
+            border: none;
+            font-size: clamp(13px, 2vw, 16px);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .tutorial-btn.next {
+            background: #e94560;
+            color: #fff;
+        }
+
+        .tutorial-btn.next:hover {
+            background: #ff6b81;
+            transform: translateY(-2px);
+        }
+
+        .tutorial-btn.skip {
+            background: transparent;
+            color: #888;
+            border: 1px solid #555;
+        }
+
+        .tutorial-btn.skip:hover {
+            color: #fff;
+            border-color: #fff;
+        }
+
+        #tutorial-card .tip-box {
+            background: rgba(255, 204, 0, 0.1);
+            border: 1px solid rgba(255, 204, 0, 0.3);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #ffcc00;
         }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-        
-        <!-- HUD -->
-        <div id="hud">
-            <span class="hud-item" id="health-hud">❤️ 200</span>
-            <span class="hud-item">🌊 <span id="wave-hud">1</span></span>
-            <span class="hud-item">💀 <span id="kills-hud">0</span></span>
-            <span class="hud-item">⭐ <span id="score-hud">0</span></span>
+    <!-- Tutorial Overlay -->
+    <div id="tutorial-overlay">
+        <div id="tutorial-card">
+            <h2 id="tutorial-title">Welcome, Survivor!</h2>
+            <div class="tutorial-icon" id="tutorial-icon">🧟</div>
+            <div class="tutorial-text" id="tutorial-text">
+                The zombie apocalypse has begun. Learn how to survive!
+            </div>
+            <div class="tutorial-steps" id="tutorial-dots">
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+            <div class="tip-box" id="tutorial-tip" style="display:none;"></div>
+            <div id="tutorial-buttons">
+                <button class="tutorial-btn skip" id="btn-skip">SKIP TUTORIAL</button>
+                <button class="tutorial-btn next" id="btn-next">NEXT ➤</button>
+            </div>
         </div>
+    </div>
 
-        <!-- Weapon indicator -->
-        <div id="weapon-indicator">
-            <div class="weapon-slot active" data-slot="0">🔫</div>
-            <div class="weapon-slot" data-slot="1">💥</div>
-            <div class="weapon-slot" data-slot="2">🎯</div>
-            <div class="weapon-slot" data-slot="3">🔥</div>
-        </div>
+    <!-- Game -->
+    <div id="game-wrapper">
+        <div id="game-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div id="hud">
+                <span class="hud-item" id="health-hud">❤️ 200</span>
+                <span class="hud-item">🌊 <span id="wave-hud">1</span></span>
+                <span class="hud-item">💀 <span id="kills-hud">0</span></span>
+                <span class="hud-item">⭐ <span id="score-hud">0</span></span>
+            </div>
 
-        <!-- Mobile buttons - OUTSIDE canvas -->
-        <div id="mobile-buttons">
-            <button class="mobile-action-btn" id="reload-btn" title="Reload">🔄</button>
-            <button class="mobile-action-btn" id="swap-btn" title="Swap Weapon">⇄</button>
-        </div>
+            <div id="weapon-indicator">
+                <button class="weapon-slot active" data-slot="0">🔫</button>
+                <button class="weapon-slot" data-slot="1">💥</button>
+                <button class="weapon-slot" data-slot="2">🎯</button>
+                <button class="weapon-slot" data-slot="3">🔥</button>
+            </div>
 
-        <!-- Desktop hint -->
-        <div id="desktop-hint">
-            🖱️ WASD Move | Mouse Aim | Click Shoot | R Reload | 1-4 Swap
+            <div id="mobile-buttons">
+                <button class="mobile-action-btn" id="reload-btn" title="Reload">🔄</button>
+                <button class="mobile-action-btn" id="swap-btn" title="Swap Weapon">⇄</button>
+            </div>
+
+            <div id="desktop-hint">
+                🖱️ WASD Move | Mouse Aim | Click Shoot | R Reload | 1-4 Swap
+            </div>
         </div>
     </div>
 
