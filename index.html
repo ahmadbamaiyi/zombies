@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Zombie Apocalypse Survival</title>
     <style>
         * {
@@ -12,6 +12,7 @@
             -webkit-tap-highlight-color: transparent;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         body {
@@ -20,9 +21,13 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            min-height: 100dvh;
             font-family: 'Arial', sans-serif;
             overflow: hidden;
-            touch-action: none;
+            touch-action: manipulation;
+            position: fixed;
+            width: 100%;
+            height: 100%;
         }
 
         #game-container {
@@ -30,6 +35,8 @@
             width: 100vmin;
             max-width: 600px;
             aspect-ratio: 3/4;
+            max-height: 100vh;
+            max-height: 100dvh;
         }
 
         canvas {
@@ -38,6 +45,7 @@
             height: 100%;
             background: #1a1a1a;
             border: 2px solid #333;
+            touch-action: none;
         }
 
         #hud {
@@ -48,15 +56,16 @@
             display: flex;
             justify-content: space-between;
             pointer-events: none;
-            gap: 5px;
+            gap: 4px;
+            z-index: 10;
         }
 
         .hud-item {
             background: rgba(0, 0, 0, 0.8);
             color: #fff;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 15px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             border: 1px solid rgba(255, 255, 255, 0.2);
             white-space: nowrap;
@@ -68,134 +77,116 @@
         }
 
         @keyframes blink {
-            50% { opacity: 0.5; }
+            50% { opacity: 0.4; }
         }
 
         #weapon-indicator {
             position: absolute;
-            bottom: 130px;
+            top: 55px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 8px;
+            gap: 6px;
             pointer-events: none;
+            z-index: 10;
         }
 
         .weapon-slot {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             background: rgba(0, 0, 0, 0.7);
             border: 2px solid #555;
-            border-radius: 10px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
-            color: #fff;
+            font-size: 18px;
+            transition: all 0.2s;
         }
 
         .weapon-slot.active {
             border-color: #ffcc00;
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.5);
+            box-shadow: 0 0 12px rgba(255, 204, 0, 0.5);
             background: rgba(255, 204, 0, 0.2);
+            transform: scale(1.1);
         }
 
-        #mobile-controls {
+        /* Mobile control buttons - positioned OUTSIDE canvas area */
+        #mobile-buttons {
             position: absolute;
-            bottom: 15px;
-            left: 15px;
-            pointer-events: none;
-        }
-
-        #joystick-base {
-            width: 100px;
-            height: 100px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            position: relative;
-            pointer-events: auto;
-        }
-
-        #joystick-thumb {
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
+            bottom: 10px;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 20;
             pointer-events: none;
         }
 
-        #shoot-btn {
-            position: absolute;
-            bottom: 40px;
-            right: 30px;
-            width: 70px;
-            height: 70px;
-            background: rgba(255, 50, 50, 0.4);
-            border: 3px solid rgba(255, 50, 50, 0.7);
-            border-radius: 50%;
+        .mobile-action-btn {
             pointer-events: auto;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-size: 22px;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #fff;
-            font-weight: bold;
-            font-size: 14px;
+            transition: all 0.15s;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        #shoot-btn:active {
-            background: rgba(255, 50, 50, 0.8);
+        .mobile-action-btn:active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.9);
         }
 
         #reload-btn {
-            position: absolute;
-            bottom: 120px;
-            right: 25px;
-            width: 45px;
-            height: 45px;
-            background: rgba(255, 200, 0, 0.4);
-            border: 2px solid rgba(255, 200, 0, 0.7);
-            border-radius: 50%;
-            pointer-events: auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-weight: bold;
-            font-size: 18px;
+            border-color: rgba(255, 200, 0, 0.7);
         }
 
-        #weapon-swap-btn {
+        #swap-btn {
+            border-color: rgba(100, 200, 255, 0.7);
+        }
+
+        /* Desktop instructions */
+        #desktop-hint {
             position: absolute;
-            bottom: 175px;
-            right: 30px;
-            width: 35px;
-            height: 35px;
-            background: rgba(100, 200, 255, 0.4);
-            border: 2px solid rgba(100, 200, 255, 0.7);
-            border-radius: 50%;
-            pointer-events: auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 16px;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 10;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 12px;
+            border-radius: 10px;
         }
 
         @media (min-width: 768px) {
-            #mobile-controls, #shoot-btn, #reload-btn, #weapon-swap-btn {
+            #mobile-buttons {
                 display: none;
             }
         }
 
         @media (max-width: 767px) {
+            #desktop-hint {
+                display: none;
+            }
             .hud-item {
                 font-size: 10px;
-                padding: 4px 8px;
+                padding: 4px 7px;
+            }
+            .weapon-slot {
+                width: 30px;
+                height: 30px;
+                font-size: 15px;
             }
         }
     </style>
@@ -204,13 +195,15 @@
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         
+        <!-- HUD -->
         <div id="hud">
-            <span class="hud-item" id="health-hud">❤️ 100</span>
-            <span class="hud-item">🌊 Wave <span id="wave-hud">1</span></span>
+            <span class="hud-item" id="health-hud">❤️ 200</span>
+            <span class="hud-item">🌊 <span id="wave-hud">1</span></span>
             <span class="hud-item">💀 <span id="kills-hud">0</span></span>
             <span class="hud-item">⭐ <span id="score-hud">0</span></span>
         </div>
 
+        <!-- Weapon indicator -->
         <div id="weapon-indicator">
             <div class="weapon-slot active" data-slot="0">🔫</div>
             <div class="weapon-slot" data-slot="1">💥</div>
@@ -218,16 +211,18 @@
             <div class="weapon-slot" data-slot="3">🔥</div>
         </div>
 
-        <div id="mobile-controls">
-            <div id="joystick-base">
-                <div id="joystick-thumb"></div>
-            </div>
+        <!-- Mobile buttons - OUTSIDE canvas -->
+        <div id="mobile-buttons">
+            <button class="mobile-action-btn" id="reload-btn" title="Reload">🔄</button>
+            <button class="mobile-action-btn" id="swap-btn" title="Swap Weapon">⇄</button>
         </div>
-        <button id="reload-btn">🔄</button>
-        <button id="weapon-swap-btn">⇄</button>
-        <button id="shoot-btn">FIRE</button>
+
+        <!-- Desktop hint -->
+        <div id="desktop-hint">
+            🖱️ WASD Move | Mouse Aim | Click Shoot | R Reload | 1-4 Swap
+        </div>
     </div>
 
-    <script src="game.js"></script>
+    <script src="zombie-game.js"></script>
 </body>
 </html>
